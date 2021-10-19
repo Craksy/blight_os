@@ -1,9 +1,7 @@
 use core::convert::TryInto;
 
 use num_derive::FromPrimitive;
-use num_derive::ToPrimitive;
 use num_traits::FromPrimitive;
-use num_traits::ToPrimitive;
 
 pub fn decode(scancode: u8) -> Option<KeyboardEvent> {
     if let Some(key) = FromPrimitive::from_u8(scancode) {
@@ -11,8 +9,10 @@ pub fn decode(scancode: u8) -> Option<KeyboardEvent> {
     }
 
     // break keys seems to just be corresponding make, offset by 128
-    if let Some(key) = FromPrimitive::from_u8(scancode + 0x80) {
-        return Some(KeyboardEvent::Break(key));
+    if let Some(code) = scancode.checked_add(0x80){
+        if let Some(key) = FromPrimitive::from_u8(code) {
+            Some(KeyboardEvent::Break(key));
+        }
     }
 
     None

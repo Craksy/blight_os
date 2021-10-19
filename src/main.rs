@@ -10,6 +10,7 @@ use blight_os::hlt_loop;
 use blight_os::{exit_qemu, println, QExitCode};
 use core::panic::PanicInfo;
 
+
 #[no_mangle]
 pub extern "C" fn _start() -> ! {
     blight_os::init();
@@ -17,10 +18,42 @@ pub extern "C" fn _start() -> ! {
     #[cfg(test)]
     test_runner_entry();
 
-    println!("Hello, World!");
-    x86_64::instructions::interrupts::int3();
-    println!("after interrupt");
+    print_banner();
+
     hlt_loop();
+}
+
+
+fn trigger_page_fault(){
+    unsafe { *(0xb00b1e5 as *mut u64) = 69 };
+}
+
+
+fn print_banner(){
+    println!("{:^80}", "-----------------------------------------------");
+    println!("{:^80}", "|                                             |");
+    println!("{:^80}", "|          ____  _ _       _     _            |");
+    println!("{:^80}", "|         | __ )| (_) __ _| |__ | |_          |");
+    println!("{:^80}", "|         |  _ \\| | |/ _` | '_ \\| __|         |");
+    println!("{:^80}", "|         | |_) | | | (_| | | | | |_          |");
+    println!("{:^80}", "|         |____/|_|_|\\__, |_| |_|\\__|         |");
+    println!("{:^80}", "|                    |___/                    |");
+    println!("{:^80}", "|                  ___  ____                  |");
+    println!("{:^80}", "|                 / _ \\/ ___|                 |");
+    println!("{:^80}", "|                | | | \\___ \\                 |");
+    println!("{:^80}", "|                | |_| |___) |                |");
+    println!("{:^80}", "|                 \\___/|____/                 |");
+    println!("{:^80}", "|                                             |");
+    println!("{:^80}", "-----------------------------------------------");
+    println!("{:^80}", "               __  _                             ");
+    println!("{:^80}", "            .-.'  `; `-._  __  _     bah!        ");
+    println!("{:^80}", "  bah!     (_,         .-:'  `; `-._/            ");
+    println!("{:^80}", "      \\  ,'o\"(        (_,           )            ");
+    println!("{:^80}", "        (__,-'      ,'o\"(            )>          ");
+    println!("{:^80}", "           (       (__,-'            )           ");
+    println!("{:^80}", "            `-'._.--._(             )            ");
+    println!("{:^80}", "               |||  |||`-'._.--._.-'             ");
+    println!("{:^80}", "                          |||  |||               ");
 }
 
 #[cfg(test)]
@@ -37,11 +70,8 @@ fn panic(info: &PanicInfo) -> ! {
     hlt_loop();
 }
 
-// tests
 
 #[test_case]
 fn basic_assertion() {
     assert_eq!(1, 1, "1 == 1");
 }
-
-// end of tests
