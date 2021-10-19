@@ -6,14 +6,16 @@
 #![test_runner(crate::test_runner)]
 #![reexport_test_harness_main = "test_runner_entry"]
 
-#[macro_use]
+extern crate alloc;
 extern crate num_derive;
 
+use bootloader::{entry_point, BootInfo};
 use core::{any::type_name, panic::PanicInfo};
 
 pub mod gdt;
 pub mod interrupts;
 pub mod keyboard;
+pub mod memory;
 pub mod serial;
 pub mod vga_buffer;
 
@@ -44,6 +46,23 @@ pub fn hlt_loop() -> ! {
     loop {
         x86_64::instructions::hlt();
     }
+}
+
+/// Panic handler
+#[cfg(test)]
+#[panic_handler]
+fn panic(info: &PanicInfo) -> ! {
+    test_panic(info)
+}
+
+#[cfg(test)]
+entry_point!(kernel_test_entry);
+/// Entry point for `cargo test --lib`
+#[cfg(test)]
+pub fn kernel_test_entry(_boot_info: &'static BootInfo) -> ! {
+    init();
+    test_runner_entry();
+    hlt_loop();
 }
 
 /// Trait for test functions that prints their name, invokes them, and prints a
@@ -85,22 +104,6 @@ pub fn test_runner(tests: &[&dyn Testable]) {
     serial_println!("   [01;32m│{:^78}│[0m", "✓ All tests passed! ✓");
     serial_println!("   [01;32m└{:─<78}┘[0m", "");
     exit_qemu(QExitCode::Success);
-}
-
-/// Panic handler
-#[cfg(test)]
-#[panic_handler]
-fn panic(info: &PanicInfo) -> ! {
-    test_panic(info)
-}
-
-/// Entry point for `cargo test --lib`
-#[cfg(test)]
-#[no_mangle]
-pub extern "C" fn _start() -> ! {
-    init();
-    test_runner_entry();
-    hlt_loop();
 }
 
 #[test_case]
