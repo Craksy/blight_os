@@ -2,6 +2,7 @@
 #![cfg_attr(test, no_main)]
 #![feature(custom_test_frameworks)]
 #![feature(abi_x86_interrupt)]
+#![feature(alloc_error_handler)]
 #![feature(type_ascription)]
 #![test_runner(crate::test_runner)]
 #![reexport_test_harness_main = "test_runner_entry"]
@@ -12,17 +13,24 @@ extern crate num_derive;
 use bootloader::{entry_point, BootInfo};
 use core::{any::type_name, panic::PanicInfo};
 
+pub mod allocator;
 pub mod gdt;
 pub mod interrupts;
 pub mod keyboard;
 pub mod memory;
 pub mod serial;
+
 pub mod vga_buffer;
 
 #[repr(u32)]
 pub enum QExitCode {
     Success = 0x10,
     Failure = 0x11,
+}
+
+#[alloc_error_handler]
+fn allocation_error_handler(layout: alloc::alloc::Layout) -> ! {
+    panic!("allocation error: {:?}", layout);
 }
 
 pub fn exit_qemu(exit_code: QExitCode) {

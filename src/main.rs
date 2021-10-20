@@ -2,14 +2,19 @@
 #![no_std]
 #![no_main]
 #![feature(custom_test_frameworks)]
+#![feature(alloc_error_handler)]
 #![test_runner(blight_os::test_runner)]
 #![reexport_test_harness_main = "test_runner_entry"]
 
+extern crate alloc;
+
+use core::panic::PanicInfo;
+
+use alloc::boxed::Box;
 use blight_os::{hlt_loop, memory::BootInfoFrameAllocator, println};
 use bootloader::{entry_point, BootInfo};
-use core::panic::PanicInfo;
 use x86_64::{
-    structures::paging::{Page, Translate},
+    structures::paging::{OffsetPageTable, Page, Translate},
     VirtAddr,
 };
 
@@ -23,24 +28,31 @@ fn kernel_entry(boot_info: &'static BootInfo) -> ! {
     let mut mapper = unsafe { blight_os::memory::init(physical_offset) };
     let mut frame_allocator = unsafe { BootInfoFrameAllocator::init(&boot_info.memory_map) };
 
-    println!("nothing exploded so far...");
+    blight_os::allocator::init_heap(&mut mapper, &mut frame_allocator)
+        .expect("Heap allocation failed.");
 
-    let test_addresses = [
-        0xb8000,
-        0x201008,
-        0x010000201a10,
-        boot_info.physical_memory_offset,
-    ];
+    let some_shit_on_the_heap = Box::new(420);
+
+    println!("Thing on the heap: {}", *some_shit_on_the_heap);
+
+    #[cfg(test)]
+    test_runner_entry();
+    hlt_loop();
+}
+
+// #[alloc_error_handler]
+// fn allocation_error_handler(layout: alloc::alloc::Layout) -> ! {
+//     panic!("allocation error: {:?}", layout);
+// }
+
+fn translate_some_addresses(mapper: &mut OffsetPageTable, physical_memory_offset: u64) {
+    let test_addresses = [0xb8000, 0x201008, 0x010000201a10, physical_memory_offset];
 
     for add in test_addresses {
         let virt = VirtAddr::new(add);
         let phys = mapper.translate_addr(virt);
         println!("{:?} -> {:?}", virt, phys);
     }
-
-    #[cfg(test)]
-    test_runner_entry();
-    hlt_loop();
 }
 
 fn trigger_page_fault() {

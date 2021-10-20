@@ -9,7 +9,7 @@ pub fn decode(scancode: u8) -> Option<KeyboardEvent> {
     }
 
     // break keys seems to just be corresponding make, offset by 128
-    if let Some(code) = scancode.checked_add(0x80){
+    if let Some(code) = scancode.checked_add(0x80) {
         if let Some(key) = FromPrimitive::from_u8(code) {
             Some(KeyboardEvent::Break(key));
         }
@@ -80,7 +80,7 @@ impl TryInto<char> for Key {
 #[derive(FromPrimitive, Copy, Clone)]
 #[repr(u8)]
 pub enum Key {
-    NOKEY,        // 0x00
+    Any,          // 0x0
     Esc,          // 0x1
     Num1,         // 0x2
     Num2,         // 0x3
