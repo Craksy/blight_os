@@ -1,5 +1,7 @@
 extern crate alloc;
 
+pub mod bump;
+
 use linked_list_allocator::LockedHeap;
 use x86_64::{
     structures::paging::{
