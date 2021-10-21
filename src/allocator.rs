@@ -1,8 +1,10 @@
 extern crate alloc;
 
 pub mod bump;
+pub mod linked_list;
 
 use linked_list_allocator::LockedHeap;
+use spin::{Mutex, MutexGuard};
 use x86_64::{
     structures::paging::{
         mapper::MapToError, FrameAllocator, Mapper, Page, PageTableFlags, Size4KiB,
@@ -10,8 +12,11 @@ use x86_64::{
     VirtAddr,
 };
 
+use self::bump::BumpAllocator;
+
 #[global_allocator]
-pub static ALLOCATOR: LockedHeap = LockedHeap::empty();
+pub static ALLOCATOR: Locked<BumpAllocator> = Locked::new(BumpAllocator::new());
+// pub static ALLOCATOR: LockedHeap = LockedHeap::empty();
 
 pub const HEAP_START: usize = 0x4444_4444_0000;
 pub const HEAP_SIZE: usize = 1024 * 1024;
@@ -43,4 +48,36 @@ pub fn init_heap(
     }
 
     Ok(())
+}
+
+pub fn align_up(addr: usize, align: usize) -> usize {
+    // super smart piece of bit magic which is actually a lot faster:
+    // (addr + align -1) & !(align-1)
+    let remainder = addr % align;
+    if remainder == 0 {
+        addr
+    } else {
+        addr - remainder + align
+    }
+}
+
+// Thin wrapper around Mutex.
+// Its purpose is to get around the rule of implementing traits for external crates.
+// By making a crate-local wrapper traits can be implemented for it, making it
+// possible to get mutable references for variables that are otherwise immutable
+// only
+pub struct Locked<T> {
+    inner: Mutex<T>,
+}
+
+impl<T> Locked<T> {
+    pub const fn new(inner: T) -> Self {
+        Self {
+            inner: Mutex::new(inner),
+        }
+    }
+
+    pub fn lock(&self) -> MutexGuard<T> {
+        self.inner.lock()
+    }
 }
