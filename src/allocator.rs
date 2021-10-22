@@ -13,13 +13,15 @@ use x86_64::{
 };
 
 use self::bump::BumpAllocator;
+use self::linked_list::LinkedListAllocator;
 
 #[global_allocator]
-pub static ALLOCATOR: Locked<BumpAllocator> = Locked::new(BumpAllocator::new());
+pub static ALLOCATOR: Locked<LinkedListAllocator> = Locked::new(LinkedListAllocator::new());
+//pub static ALLOCATOR: Locked<BumpAllocator> = Locked::new(BumpAllocator::new());
 // pub static ALLOCATOR: LockedHeap = LockedHeap::empty();
 
 pub const HEAP_START: usize = 0x4444_4444_0000;
-pub const HEAP_SIZE: usize = 1024 * 1024;
+pub const HEAP_SIZE: usize = 1000 * 1024;
 
 pub fn init_heap(
     mapper: &mut impl Mapper<Size4KiB>,
