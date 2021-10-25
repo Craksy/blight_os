@@ -11,7 +11,6 @@
 extern crate alloc;
 extern crate num_derive;
 
-use bootloader::{entry_point, BootInfo};
 use core::{any::type_name, panic::PanicInfo};
 
 pub mod allocator;
@@ -31,7 +30,7 @@ pub enum QExitCode {
 
 #[alloc_error_handler]
 fn allocation_error_handler(layout: alloc::alloc::Layout) -> ! {
-    panic!("allocation error: {:?}", layout);
+    panic!("allocation error: {:#?}", layout);
 }
 
 pub fn exit_qemu(exit_code: QExitCode) {
@@ -57,6 +56,9 @@ pub fn hlt_loop() -> ! {
     }
 }
 
+#[cfg(test)]
+use bootloader::{entry_point, BootInfo};
+
 /// Panic handler
 #[cfg(test)]
 #[panic_handler]
@@ -66,7 +68,6 @@ fn panic(info: &PanicInfo) -> ! {
 
 #[cfg(test)]
 entry_point!(kernel_test_entry);
-/// Entry point for `cargo test --lib`
 #[cfg(test)]
 pub fn kernel_test_entry(_boot_info: &'static BootInfo) -> ! {
     init();
@@ -105,7 +106,7 @@ pub fn test_panic(_info: &PanicInfo) -> ! {
 
 /// Test runner for the custom testing framework
 pub fn test_runner(tests: &[&dyn Testable]) {
-    serial_println!("Running {} tests", tests.len());
+    serial_println!("[01;34mRunning {} tests[0m", tests.len());
     for test in tests {
         test.run();
     }

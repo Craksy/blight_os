@@ -9,14 +9,6 @@ const BUFFER_WIDTH: usize = 80;
 const BUFFER_HEIGHT: usize = 25;
 
 lazy_static! {
-    // `0xb8000`                        - a literal number
-    // `0xb8000 as *mut Buffer`         - A pointer to a Buffer object living at 0xb8000
-    // `*(0xb8000 as *mut Buffer)`      - The actual Buffer object that was pointed to
-    // `&mut *(0xb8000 as *mut Buffer)` - A mutable reference to a Buffer
-
-    // The end result here is to have a regular mutable reference to an object. We
-    // just happen to know exactly where in memory it lives, and can therefore use
-    // it to change that space of memory.
     pub static ref WRITER: Mutex<Writer> = Mutex::new(Writer {
         column: 0,
         color: ColorCode::new(Color::Green, Color::Black),

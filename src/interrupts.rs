@@ -6,10 +6,10 @@ use spin;
 use x86_64::instructions::port::Port;
 use x86_64::structures::idt::{InterruptDescriptorTable, InterruptStackFrame, PageFaultErrorCode};
 
-use crate::{gdt, hlt_loop};
-use crate::keyboard::{decode, Key, KeyboardEvent};
+use crate::keyboard::{decode, KeyboardEvent};
 use crate::print;
 use crate::println;
+use crate::{gdt, hlt_loop};
 
 pub const PIC1_OFFSET: u8 = 32;
 pub const PIC2_OFFSET: u8 = PIC1_OFFSET + 8;
@@ -59,8 +59,10 @@ extern "x86-interrupt" fn breakpoint_handler(stack_frame: InterruptStackFrame) {
     println!("EXCEPTION: breakpoint\n{:#?}", stack_frame);
 }
 
-
-extern "x86-interrupt" fn page_fault_handler(stack_frame: InterruptStackFrame, error_code:PageFaultErrorCode) {
+extern "x86-interrupt" fn page_fault_handler(
+    stack_frame: InterruptStackFrame,
+    error_code: PageFaultErrorCode,
+) {
     let add = x86_64::registers::control::Cr2::read();
     println!("Tried to read address: {:?}", add);
     println!("Error: {:?}", error_code);
