@@ -2,8 +2,8 @@ extern crate alloc;
 
 pub mod bump;
 pub mod linked_list;
+pub mod sorted_linked_list;
 
-use linked_list_allocator::LockedHeap;
 use spin::{Mutex, MutexGuard};
 use x86_64::{
     structures::paging::{
@@ -12,16 +12,18 @@ use x86_64::{
     VirtAddr,
 };
 
-use self::bump::BumpAllocator;
-use self::linked_list::LinkedListAllocator;
+use self::sorted_linked_list::SortedLinkedListAllocator;
 
 #[global_allocator]
-pub static ALLOCATOR: Locked<LinkedListAllocator> = Locked::new(LinkedListAllocator::new());
+pub static ALLOCATOR: Locked<SortedLinkedListAllocator> =
+    Locked::new(SortedLinkedListAllocator::new());
+// pub static ALLOCATOR: Locked<LinkedListAllocator> = Locked::new(LinkedListAllocator::new());
+
+//use self::bump::BumpAllocator;
 //pub static ALLOCATOR: Locked<BumpAllocator> = Locked::new(BumpAllocator::new());
-// pub static ALLOCATOR: LockedHeap = LockedHeap::empty();
 
 pub const HEAP_START: usize = 0x4444_4444_0000;
-pub const HEAP_SIZE: usize = 1000 * 1024;
+pub const HEAP_SIZE: usize = 50 * 1024;
 
 pub fn init_heap(
     mapper: &mut impl Mapper<Size4KiB>,
@@ -45,9 +47,7 @@ pub fn init_heap(
         }
     }
 
-    unsafe {
-        ALLOCATOR.lock().init(HEAP_START, HEAP_SIZE);
-    }
+    ALLOCATOR.lock().init(HEAP_START, HEAP_SIZE);
 
     Ok(())
 }
