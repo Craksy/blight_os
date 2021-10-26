@@ -11,7 +11,12 @@ extern crate alloc;
 use core::panic::PanicInfo;
 
 use alloc::boxed::Box;
-use blight_os::{hlt_loop, memory::BootInfoFrameAllocator, println};
+use blight_os::{
+    hlt_loop,
+    memory::BootInfoFrameAllocator,
+    println,
+    task::{basic_executor::BasicExecutor, Task},
+};
 use bootloader::{entry_point, BootInfo};
 use x86_64::{
     structures::paging::{OffsetPageTable, Page, Translate},
@@ -32,12 +37,24 @@ fn kernel_entry(boot_info: &'static BootInfo) -> ! {
         .expect("Heap allocation failed.");
 
     let some_shit_on_the_heap = Box::new(420);
+    let mut executor = BasicExecutor::new();
+    executor.spawn(Task::new(say_hello()));
+    executor.run();
 
     println!("Thing on the heap: {}", *some_shit_on_the_heap);
 
     #[cfg(test)]
     test_runner_entry();
     hlt_loop();
+}
+
+async fn get_name() -> &'static str {
+    &"Bob"
+}
+
+async fn say_hello() {
+    let name = get_name().await;
+    println!("Hello, {}", name);
 }
 
 // #[alloc_error_handler]

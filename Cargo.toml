@@ -10,6 +10,9 @@ bootloader  = {version = "0.9.8", features = ["map_physical_memory"]}
 lazy_static = {version = "1.0",   features = ["spin_no_std"]}
 num         = {version = "0.4",   default-features = false}
 num-traits  = {version = "0.2",   default-features = false}
+crossbeam-queue = { version = "0.2.1", default-features = false, features = ["alloc"] }
+conquer-once = { version = "0.2.0", default-features = false }
+futures-util = {version = "0.3.4", default-features = false, features= ["alloc"]}
 volatile    = "0.2.6"
 spin        = "0.5.2"
 x86_64      = "0.14.2"
@@ -17,6 +20,7 @@ uart_16550  = "0.2.0"
 pic8259     = "0.10.1"
 num-derive  = "0.3"
 linked_list_allocator = "0.9.0"
+
 
 [package.metadata.bootimage]
 test-args = [

@@ -83,13 +83,14 @@ extern "x86-interrupt" fn double_fault_handler(
 extern "x86-interrupt" fn keyboard_interrupt_handler(_stack_frame: InterruptStackFrame) {
     let mut port = Port::new(0x60);
     let scancode: u8 = unsafe { port.read() };
-    let key: Result<char, ()> = match decode(scancode) {
-        Some(KeyboardEvent::Make(key)) => key.try_into(),
-        _ => Err(()),
-    };
-    if let Ok(character) = key {
-        print!("{}", character);
-    }
+    // let key: Result<char, ()> = match decode(scancode) {
+    //     Some(KeyboardEvent::Make(key)) => key.try_into(),
+    //     _ => Err(()),
+    // };
+    // if let Ok(character) = key {
+    //     print!("{}", character);
+    // }
+    crate::task::keyboard::add_scancode(scancode);
     unsafe {
         PICS.lock()
             .notify_end_of_interrupt(InterruptIndex::Keyboard.as_u8());
