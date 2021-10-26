@@ -1,15 +1,18 @@
 use core::{
     alloc::GlobalAlloc,
     mem::{align_of, size_of},
-    ptr::null_mut,
+    ptr::{null_mut, NonNull},
 };
 
-use super::{align_up, Locked, HEAP_START};
+use super::{align_up, Locked};
 
+/// A node of the freelist.
 pub struct Node {
     size: usize,
-    next: usize,
+    next: Option<NonNull<Node>>,
 }
+
+unsafe impl Send for Node {}
 
 impl core::fmt::Debug for Node {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
@@ -19,13 +22,9 @@ impl core::fmt::Debug for Node {
             } else {
                 &self.size
             })
-            .field(&format_args!(
-                "{:#4x}",
-                &self.next.saturating_sub(HEAP_START)
-            ))
             .field(unsafe {
-                if let Some(node) = &self.next_node() {
-                    node
+                if let Some(node) = &self.next {
+                    node.as_ref()
                 } else {
                     &"Nil"
                 }
@@ -36,7 +35,7 @@ impl core::fmt::Debug for Node {
 
 impl Node {
     pub const fn new(size: usize) -> Self {
-        Self { size, next: 0 }
+        Self { size, next: None }
     }
 
     pub fn start(&self) -> usize {
@@ -45,14 +44,6 @@ impl Node {
 
     pub fn end(&self) -> usize {
         self.start() + self.size
-    }
-
-    pub unsafe fn next_node(&self) -> Option<&mut Node> {
-        if self.next == 0 {
-            None
-        } else {
-            Some(&mut *(self.next as *mut Node))
-        }
     }
 }
 
@@ -66,36 +57,38 @@ impl SortedLinkedListAllocator {
     }
 
     /// create a new free region of `size` bytes at `addr`
-    unsafe fn add_region_sorted(&mut self, addr: usize, size: usize) {
+    unsafe fn add_region_sorted(&mut self, mut addr: NonNull<Node>, size: usize) {
         assert!(size >= size_of::<Node>());
-        assert_eq!(align_up(addr, align_of::<Node>()), addr);
+        assert_eq!(
+            align_up(addr.as_ptr() as usize, align_of::<Node>()),
+            addr.as_ptr() as usize
+        );
 
         let mut previous = &mut self.head;
-        let mut current = &mut *(previous.next as *mut Node);
-        while current.next != 0 && current.next > addr {
+        // let mut current = &mut *(previous.next as *mut Node);
+        let mut current = previous.next.unwrap().as_mut();
+        while current.next.is_some() && current.next.unwrap() > addr {
             previous = current;
-            current = &mut *(previous.next as *mut Node)
+            current = previous.next.unwrap().as_mut()
         }
 
         // If the previous node neighbours the added region, simply expand it
         // and consider that the "new node"
-        let mut start_node = if previous.end() == addr && previous.size > 0 {
+        let mut start_node = if previous.end() == addr.as_ptr() as usize && previous.size > 0 {
             previous.size += size;
             &mut previous
         } else {
-            let new_node: Node;
-            new_node = Node::new(size);
-            let node_ptr = addr as *mut Node;
-            previous.next = addr;
-            node_ptr.write(new_node);
-            &mut *node_ptr
+            let new_node = addr.as_mut();
+            *new_node = Node::new(size);
+            previous.next = Some(addr);
+            addr.as_mut()
         };
 
         if current.start() == start_node.end() {
             start_node.size += current.size;
             start_node.next = current.next;
         } else {
-            start_node.next = current.start();
+            start_node.next = NonNull::new(current);
         }
     }
 
@@ -112,14 +105,13 @@ impl SortedLinkedListAllocator {
         }
     }
 
-    fn split_region<'a>(previous: &'a mut Node, region: &'a mut Node, size: usize) -> &'a mut Node {
-        let mut new_node = Node::new(size);
+    fn split_region(region: &mut Node, size: usize) -> Option<NonNull<Node>> {
         let start = region.end() - size;
+        let new_node_ptr = NonNull::new(start as *mut Node);
+        let mut new_node = unsafe { new_node_ptr.unwrap().as_mut() };
+        *new_node = Node::new(size);
         new_node.next = region.next;
-        previous.next = start;
-        let ptr = start as *mut Node;
-        unsafe { ptr.write(new_node) }
-        unsafe { &mut *ptr }
+        new_node_ptr
     }
 
     /// Traverse the free list, stopping at the first free region that can be
@@ -127,16 +119,14 @@ impl SortedLinkedListAllocator {
     /// Return the aligned start address if one is found.
     fn first_fit(&mut self, size: usize, align: usize) -> Option<usize> {
         let mut previous = &mut self.head;
-        while previous.next != 0 {
-            let current_addr = previous.next;
-            let current_node = unsafe { &mut *(current_addr as *mut Node) };
+        while let Some(mut next) = previous.next {
+            let current_node = unsafe { next.as_mut() };
             if let Some((start, remainder)) = Self::check_region(current_node, size, align) {
-                if remainder != 0 {
-                    previous.next = start;
-                    Self::split_region(previous, current_node, remainder);
+                previous.next = if remainder != 0 {
+                    Self::split_region(current_node, remainder)
                 } else {
-                    previous.next = current_node.next;
-                }
+                    current_node.next
+                };
                 return Some(start);
             }
             previous = current_node;
@@ -147,9 +137,9 @@ impl SortedLinkedListAllocator {
     pub fn get_length(&mut self) -> usize {
         let mut current = &mut self.head;
         let mut count = 1;
-        while let Some(next) = unsafe { current.next_node() } {
+        while let Some(mut next) = current.next {
             count += 1;
-            current = next;
+            current = unsafe { next.as_mut() };
         }
         count
     }
@@ -157,18 +147,18 @@ impl SortedLinkedListAllocator {
     pub fn get_free_space(&mut self) -> usize {
         let mut current = &mut self.head;
         let mut space = current.size;
-        while let Some(next) = unsafe { current.next_node() } {
-            current = next;
+        while let Some(mut next) = current.next {
+            current = unsafe { next.as_mut() };
             space += current.size;
         }
         space
     }
 
     pub fn init(&mut self, start: usize, size: usize) {
-        let new_node = Node::new(size);
-        let node_ptr = start as *mut Node;
-        self.head.next = start;
-        unsafe { node_ptr.write(new_node) };
+        let node_ptr = NonNull::new(start as *mut Node);
+        self.head.next = node_ptr;
+        let new_node = unsafe { node_ptr.expect("Null pointer").as_mut() };
+        *new_node = Node::new(size);
     }
 
     pub fn debug_print(&self) {
@@ -197,6 +187,7 @@ unsafe impl GlobalAlloc for Locked<SortedLinkedListAllocator> {
             .expect("align failed")
             .pad_to_align()
             .size();
-        self.lock().add_region_sorted(ptr as usize, size);
+        self.lock()
+            .add_region_sorted(NonNull::new(ptr as *mut Node).expect("Null ptr"), size);
     }
 }
