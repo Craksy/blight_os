@@ -1,6 +1,6 @@
 #![allow(dead_code)]
 
-use alloc::{collections::VecDeque, string::String};
+use alloc::{borrow::ToOwned, collections::VecDeque, string::String, vec::Vec};
 use core::fmt::{self, Write};
 use lazy_static::lazy_static;
 use num::CheckedAdd;
@@ -43,6 +43,30 @@ pub enum Color {
     Pink = 13,
     Yellow = 14,
     White = 15,
+}
+
+impl Color {
+    pub fn from_int(int: u8) -> Option<Self> {
+        match int {
+            0 => Some(Color::Black),
+            1 => Some(Color::Blue),
+            2 => Some(Color::Green),
+            3 => Some(Color::Cyan),
+            4 => Some(Color::Red),
+            5 => Some(Color::Magenta),
+            6 => Some(Color::Brown),
+            7 => Some(Color::LightGray),
+            8 => Some(Color::DarkGray),
+            9 => Some(Color::LightBlue),
+            10 => Some(Color::LightGreen),
+            11 => Some(Color::LightCyan),
+            12 => Some(Color::LightRed),
+            13 => Some(Color::Pink),
+            14 => Some(Color::Yellow),
+            15 => Some(Color::White),
+            _ => None,
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -92,7 +116,8 @@ impl Writer {
     pub fn write_byte(&mut self, byte: u8) {
         if self.scroll != 0 {
             self.scroll = 0;
-            self.print_hist();
+            self.print_hist(1);
+            self.clear_row(BUFFER_HEIGHT - 1);
         }
         match byte {
             b'\n' => self.new_line(),
@@ -112,6 +137,23 @@ impl Writer {
         }
     }
 
+    pub fn draw_bitmap(&mut self, bitmap: Vec<Vec<u8>>) {
+        let rows = bitmap.to_owned();
+        let height = rows.len();
+        let width = rows[0].to_owned().len();
+
+        for row in rows.iter() {
+            for px in row.iter() {
+                self.color = ColorCode(px << 4 | 1);
+                self.write_str(" ").unwrap();
+            }
+            self.color = ColorCode(1);
+            self.write_char('\n').unwrap();
+        }
+
+        self.color = ColorCode(15);
+    }
+
     pub fn write_string(&mut self, string: &str) {
         for byte in string.bytes() {
             match byte {
@@ -121,9 +163,11 @@ impl Writer {
         }
     }
 
-    fn print_hist(&mut self) {
-        for row in 0..BUFFER_HEIGHT {
-            let hist_row = self.history.lines.len() - BUFFER_HEIGHT + row + self.scroll as usize;
+    fn print_hist(&mut self, offset: usize) {
+        for row in 0..(BUFFER_HEIGHT - offset) {
+            let hist_row =
+                self.history.lines.len() + offset - BUFFER_HEIGHT + row - self.scroll as usize;
+            assert!(hist_row < self.history.lines.len());
             for col in 0..BUFFER_WIDTH {
                 let c = self.history.lines[hist_row][col];
                 self.buffer.chars[row][col].write(c);
@@ -132,10 +176,11 @@ impl Writer {
     }
 
     pub fn scroll(&mut self, amount: i16) {
-        let change = self.scroll.saturating_add(amount);
-        if self.scroll != change && change == change.clamp(0, self.history.lines.len() as i16 - 1) {
+        let change =
+            (self.scroll + amount).clamp(0, self.history.lines.len() as i16 - BUFFER_HEIGHT as i16);
+        if self.scroll != change {
             self.scroll = change;
-            self.print_hist();
+            self.print_hist(0);
         }
     }
 

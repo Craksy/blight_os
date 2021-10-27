@@ -10,12 +10,13 @@ extern crate alloc;
 
 use core::panic::PanicInfo;
 
-use alloc::boxed::Box;
+use alloc::{boxed::Box, vec, vec::Vec};
 use blight_os::{
     hlt_loop,
     memory::BootInfoFrameAllocator,
     println,
-    task::{basic_executor::BasicExecutor, Task},
+    task::{basic_executor::BasicExecutor, executor::Executor, keyboard::handle_keypresses, Task},
+    vga_buffer,
 };
 use bootloader::{entry_point, BootInfo};
 use x86_64::{
@@ -27,7 +28,6 @@ entry_point!(kernel_entry);
 
 fn kernel_entry(boot_info: &'static BootInfo) -> ! {
     blight_os::init();
-    print_banner();
 
     let physical_offset = VirtAddr::new(boot_info.physical_memory_offset);
     let mut mapper = unsafe { blight_os::memory::init(physical_offset) };
@@ -36,12 +36,13 @@ fn kernel_entry(boot_info: &'static BootInfo) -> ! {
     blight_os::allocator::init_heap(&mut mapper, &mut frame_allocator)
         .expect("Heap allocation failed.");
 
-    let some_shit_on_the_heap = Box::new(420);
-    let mut executor = BasicExecutor::new();
-    executor.spawn(Task::new(say_hello()));
-    executor.run();
+    print_banner();
+    draw_jarold();
 
-    println!("Thing on the heap: {}", *some_shit_on_the_heap);
+    let mut executor = Executor::new();
+    executor.spawn(Task::new(say_hello()));
+    executor.spawn(Task::new(handle_keypresses()));
+    executor.run();
 
     #[cfg(test)]
     test_runner_entry();
@@ -74,6 +75,38 @@ fn translate_some_addresses(mapper: &mut OffsetPageTable, physical_memory_offset
 
 fn trigger_page_fault() {
     unsafe { *(0xb00b1e5 as *mut u64) = 69 };
+}
+
+fn draw_jarold() {
+    #[rustfmt::skip]
+ let jarold:Vec<Vec<u8>>  = vec![
+    vec![15, 15, 15, 15, 7, 7, 7, 7, 7, 7, 15, 15, 15, 15, 7, 7, 15, 15, 7, 7, 7, 7, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15],
+    vec![15, 15, 15, 7, 7, 7, 7, 7, 7, 7, 7, 15, 15, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 15, 15, 15, 15, 15, 15, 15],
+    vec![15, 15, 7, 7, 7, 7, 7, 7, 7, 7, 7, 15, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 15, 15, 15, 15, 15, 15],
+    vec![15, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 15, 15, 15, 15],
+    vec![15, 7, 7, 7, 7, 7, 7, 7, 0, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 15, 15, 15],
+    vec![15, 15, 6, 7, 7, 7, 7, 7, 7, 0, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 15],
+    vec![15, 6, 6, 6, 7, 7, 7, 7, 7, 0, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7],
+    vec![6, 6, 6, 6, 6, 7, 7, 7, 7, 0, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 0, 7, 7],
+    vec![6, 6, 6, 6, 6, 6, 0, 7, 7, 0, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 0, 7, 7],
+    vec![6, 6, 6, 6, 6, 6, 7, 0, 0, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 0, 7, 15],
+    vec![15, 6, 6, 6, 15, 15, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 15, 15],
+    vec![15, 15, 15, 15, 15, 15, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 15, 15],
+    vec![15, 15, 15, 15, 15, 15, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 15, 15],
+    vec![15, 15, 15, 15, 15, 15, 15, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 15, 15],
+    vec![15, 15, 15, 15, 15, 15, 15, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 15, 15],
+    vec![15, 15, 15, 15, 15, 15, 15, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 15, 15, 15],
+    vec![15, 15, 15, 15, 15, 15, 15, 15, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 15, 15, 15],
+    vec![15, 15, 15, 15, 15, 15, 15, 15, 15, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 6, 15, 15, 15, 15, 15],
+    vec![15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 7, 7, 7, 7, 7, 7, 15, 15, 15, 15, 15, 15, 15, 6, 6, 6, 6, 15, 15, 15, 15],
+    vec![15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 6, 6, 6, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 6, 6, 6, 15, 15, 15, 15],
+    vec![15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 6, 6, 6, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 6, 6, 6, 15, 15, 15, 15],
+    vec![15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 6, 6, 6, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 6, 6, 6, 15, 15, 15, 15],
+    vec![15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 6, 6, 6, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 6, 6, 6, 15, 15, 15, 15]
+    ];
+    x86_64::instructions::interrupts::without_interrupts(|| {
+        vga_buffer::WRITER.lock().draw_bitmap(jarold);
+    });
 }
 
 #[rustfmt::skip]
