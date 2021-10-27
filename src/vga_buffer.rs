@@ -1,18 +1,26 @@
 #![allow(dead_code)]
 
+use alloc::{collections::VecDeque, string::String};
 use core::fmt::{self, Write};
 use lazy_static::lazy_static;
+use num::CheckedAdd;
 use spin::Mutex;
 use volatile::Volatile;
 
 const BUFFER_WIDTH: usize = 80;
 const BUFFER_HEIGHT: usize = 25;
 
+const BUFFER_HIST: usize = 500;
+
 lazy_static! {
     pub static ref WRITER: Mutex<Writer> = Mutex::new(Writer {
         column: 0,
         color: ColorCode::new(Color::Green, Color::Black),
         buffer: unsafe { &mut *(0xb8000 as *mut Buffer) },
+        history: BufferHistory {
+            lines: VecDeque::new()
+        },
+        scroll: 0
     });
 }
 
@@ -59,10 +67,18 @@ struct Buffer {
     chars: [[Volatile<ScreenChar>; BUFFER_WIDTH]; BUFFER_HEIGHT],
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct BufferHistory {
+    lines: VecDeque<[ScreenChar; BUFFER_WIDTH]>,
+}
+
 pub struct Writer {
     column: usize,
     color: ColorCode,
     buffer: &'static mut Buffer,
+    // history: Option<VecDeque<[Volatile<ScreenChar>; BUFFER_WIDTH]>>,
+    history: BufferHistory,
+    scroll: i16,
 }
 
 impl fmt::Write for Writer {
@@ -74,6 +90,10 @@ impl fmt::Write for Writer {
 
 impl Writer {
     pub fn write_byte(&mut self, byte: u8) {
+        if self.scroll != 0 {
+            self.scroll = 0;
+            self.print_hist();
+        }
         match byte {
             b'\n' => self.new_line(),
             byte => {
@@ -101,7 +121,35 @@ impl Writer {
         }
     }
 
+    fn print_hist(&mut self) {
+        for row in 0..BUFFER_HEIGHT {
+            let hist_row = self.history.lines.len() - BUFFER_HEIGHT + row + self.scroll as usize;
+            for col in 0..BUFFER_WIDTH {
+                let c = self.history.lines[hist_row][col];
+                self.buffer.chars[row][col].write(c);
+            }
+        }
+    }
+
+    pub fn scroll(&mut self, amount: i16) {
+        let change = self.scroll.saturating_add(amount);
+        if self.scroll != change && change == change.clamp(0, self.history.lines.len() as i16 - 1) {
+            self.scroll = change;
+            self.print_hist();
+        }
+    }
+
     fn new_line(&mut self) {
+        let row = BUFFER_HEIGHT - 1;
+        let mut hline = [ScreenChar {
+            character: 0u8,
+            color: self.color,
+        }; BUFFER_WIDTH];
+        for col in 0..BUFFER_WIDTH {
+            let c = self.buffer.chars[row][col].read();
+            hline[col] = c;
+        }
+        self.history.lines.push_back(hline);
         for row in 1..BUFFER_HEIGHT {
             for col in 0..BUFFER_WIDTH {
                 let c = self.buffer.chars[row][col].read();
@@ -138,6 +186,12 @@ macro_rules! println {
 pub fn _print(args: fmt::Arguments) {
     x86_64::instructions::interrupts::without_interrupts(|| {
         WRITER.lock().write_fmt(args).unwrap();
+    });
+}
+
+pub fn scroll_buffer(amount: i16) {
+    x86_64::instructions::interrupts::without_interrupts(|| {
+        WRITER.lock().scroll(amount);
     });
 }
 

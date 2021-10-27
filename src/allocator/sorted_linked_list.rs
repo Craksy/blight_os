@@ -65,7 +65,6 @@ impl SortedLinkedListAllocator {
         );
 
         let mut previous = &mut self.head;
-        // let mut current = &mut *(previous.next as *mut Node);
         let mut current = previous.next.unwrap().as_mut();
         while current.next.is_some() && current.next.unwrap() > addr {
             previous = current;

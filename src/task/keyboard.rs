@@ -1,11 +1,13 @@
 use conquer_once::spin::OnceCell;
+use core::convert::TryInto;
 use core::task::Poll;
 use crossbeam_queue::ArrayQueue;
-use futures_util::{task::AtomicWaker, Stream};
+use futures_util::{task::AtomicWaker, Stream, StreamExt};
 
 static WAKER: AtomicWaker = AtomicWaker::new();
 
-use crate::println;
+use crate::keyboard::{decode, Key, KeyboardEvent::*};
+use crate::{print, println};
 
 static SCANCODE_QUEUE: OnceCell<ArrayQueue<u8>> = OnceCell::uninit();
 
@@ -54,6 +56,29 @@ impl Stream for ScancodeStream {
                 Poll::Ready(Some(scancode))
             }
             Err(crossbeam_queue::PopError) => Poll::Pending,
+        }
+    }
+}
+
+pub async fn handle_keypresses() {
+    let mut scancode_stream = ScancodeStream::new();
+
+    while let Some(scancode) = scancode_stream.next().await {
+        if let Some(Make(key)) = decode(scancode) {
+            let r: Result<char, ()> = key.try_into();
+            if let Ok(character) = r {
+                print!("{}", character);
+            } else {
+                match key {
+                    Key::Keypad2 => {
+                        crate::vga_buffer::scroll_buffer(-1);
+                    }
+                    Key::Keypad8 => {
+                        crate::vga_buffer::scroll_buffer(1);
+                    }
+                    _ => print!("{}", scancode),
+                }
+            }
         }
     }
 }

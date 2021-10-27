@@ -1,4 +1,3 @@
-use core::convert::TryInto;
 use core::panic;
 use lazy_static::lazy_static;
 use pic8259::ChainedPics;
@@ -6,8 +5,6 @@ use spin;
 use x86_64::instructions::port::Port;
 use x86_64::structures::idt::{InterruptDescriptorTable, InterruptStackFrame, PageFaultErrorCode};
 
-use crate::keyboard::{decode, KeyboardEvent};
-use crate::print;
 use crate::println;
 use crate::{gdt, hlt_loop};
 
@@ -21,7 +18,7 @@ pub static PICS: spin::Mutex<ChainedPics> =
 #[derive(Debug, Clone, Copy)]
 enum InterruptIndex {
     Timer = PIC1_OFFSET,
-    Keyboard = PIC1_OFFSET + 1,
+    Keyboard,
 }
 
 impl InterruptIndex {
